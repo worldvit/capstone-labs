@@ -133,6 +133,15 @@ export RDS_INSTANCE_CLASS="${RDS_INSTANCE_CLASS:-db.t4g.micro}"
 export RDS_STORAGE_GB="${RDS_STORAGE_GB:-20}"
 export N_RDS="${PREFIX}-rds"
 
+# ---------- Auto Scaling ----------
+# 대상 추적 경보는 3회 연속 임계값 초과를 요구한다.
+# 기본 모니터링(5분)이면 최소 15분, 세부 모니터링(1분)이면 3분이면 반응한다.
+# 실습에서는 세부 모니터링을 켜는 편이 낫다(인스턴스당 월 약 $2.10).
+export DETAILED_MONITORING="${DETAILED_MONITORING:-true}"
+export SCALE_TARGET_CPU="${SCALE_TARGET_CPU:-40}"     # 목표 평균 CPU(%)
+export ASG_COOLDOWN="${ASG_COOLDOWN:-60}"             # 조정 간 대기(초)
+export ASG_WARMUP="${ASG_WARMUP:-120}"                # 새 인스턴스 준비 시간(초)
+
 # ---------- NAT 방식 ----------
 # regional : Regional NAT Gateway (2025-11 출시). VPC당 1개가 모든 AZ로 자동 확장.
 #            퍼블릭 서브넷 불필요, EIP는 AWS가 관리. VPC 2개 → NAT 2개.

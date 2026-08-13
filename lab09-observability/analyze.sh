@@ -15,6 +15,10 @@ fi
 
 source "$(dirname "$0")/../00-common/bootstrap.sh"
 
+# 분석 스크립트는 쿼리 하나가 실패해도 나머지 항목을 계속 보여줘야 한다.
+set +e
+set +o pipefail
+
 MINUTES="${MINUTES:-60}"          # 분석 대상 기간(분)
 START_MS=$(( ($(date +%s) - MINUTES * 60) * 1000 ))
 END_MS=$(( $(date +%s) * 1000 ))
