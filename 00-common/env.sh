@@ -116,6 +116,23 @@ export N_BACKUP_VAULT="${PREFIX}-vault"
 export N_BACKUP_PLAN="${PREFIX}-plan"
 export N_ROLE_BACKUP="${PREFIX}-backup-role"
 
+# ---------- 데이터베이스 ----------
+# Free Tier 계정은 백업 보존 기간이 1일로 제한된다(FreeTierRestrictionError).
+# 유료 플랜이면 7 이상을 권장한다. build 스크립트가 실패 시 자동으로 1로 재시도한다.
+export DB_BACKUP_RETENTION="${DB_BACKUP_RETENTION:-7}"
+# Free Tier(무료 플랜) 계정은 aurora-postgresql 만 허용된다.
+# build 스크립트가 FreeTierRestrictionError를 만나면 자동으로 전환한다.
+export DB_ENGINE="${DB_ENGINE:-aurora-mysql}"
+
+# DB_MODE=rds     : 일반 RDS 다중 AZ 배포. Free Tier 계정에서도 VPC 안에 만들 수 있다.
+#                   기본 인스턴스 + 다른 AZ의 대기 인스턴스. 리더 엔드포인트는 없다.
+# DB_MODE=aurora  : Aurora 클러스터(라이터 + 리더). 유료 플랜 필요.
+export DB_MODE="${DB_MODE:-rds}"
+export RDS_ENGINE="${RDS_ENGINE:-postgres}"          # postgres | mysql
+export RDS_INSTANCE_CLASS="${RDS_INSTANCE_CLASS:-db.t4g.micro}"
+export RDS_STORAGE_GB="${RDS_STORAGE_GB:-20}"
+export N_RDS="${PREFIX}-rds"
+
 # ---------- NAT 방식 ----------
 # regional : Regional NAT Gateway (2025-11 출시). VPC당 1개가 모든 AZ로 자동 확장.
 #            퍼블릭 서브넷 불필요, EIP는 AWS가 관리. VPC 2개 → NAT 2개.
