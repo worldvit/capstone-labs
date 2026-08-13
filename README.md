@@ -34,6 +34,20 @@ bash verify-all.sh 5              # Lab 1~5 전체 진단
 
 `PASS` / `FAIL`이 항목별로 나옵니다. `FAIL`이 뜨면 그 항목만 다시 구성하면 됩니다.
 
+## 로그 분석
+
+Lab 9 이후에는 수집된 로그를 직접 읽어 봅니다. 구축이 끝이 아니라 해석이 시작입니다.
+
+```bash
+bash lab09-observability/analyze.sh --list    # 분석 항목 보기
+bash lab09-observability/analyze.sh           # 전체 실행
+bash lab09-observability/analyze.sh 5         # 5번 항목만
+MINUTES=360 bash lab09-observability/analyze.sh   # 기간 넓히기
+```
+
+각 항목은 "무엇을 묻는가 → 어떻게 묻는가 → 무엇을 읽어내는가" 순으로 나옵니다.
+데이터가 비어 있으면 트래픽을 만든 뒤 3~5분 기다리십시오.
+
 ## 다른 PC에서 이어하기
 
 랩에서 만든 리소스 ID는 S3에 자동 백업됩니다.
