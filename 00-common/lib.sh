@@ -122,6 +122,27 @@ latest_ami() {
   printf '%s' "$id"
 }
 
+# Regional NAT의 AZ 커버리지를 보여준다(regional 모드 전용, 실패해도 무해).
+rnat_az_status() { # rnat_az_status <nat-id> <라벨>
+  local id="$1" label="${2:-NAT}" j azs
+  [ -n "$id" ] || return 0
+  j="$(aws ec2 describe-nat-gateways --nat-gateway-ids "$id" --output json 2>/dev/null)" || j=""
+  # jq는 JSON이 아닌 입력에서 실패한다. 관측용 함수이므로 어떤 실패도 밖으로 새면 안 된다.
+  case "$j" in
+    '{'*) : ;;
+    *) log "  $label 상태를 조회할 수 없습니다"; return 0 ;;
+  esac
+  azs="$(printf '%s' "$j" | jq -r '
+      [ .NatGateways[0].NatGatewayAddresses[]?
+        | (.AvailabilityZone // .availabilityZone // empty) ] | unique | join(", ")' 2>/dev/null || true)"
+  if [ -n "$azs" ]; then
+    log "  $label 커버 AZ: $azs"
+  else
+    log "  $label AZ 정보를 아직 조회할 수 없습니다(확장 진행 중일 수 있음)"
+  fi
+  return 0
+}
+
 # ---------- 대기 ----------
 # wait_until "설명" 최대초 간격초 <판정명령...>   판정명령이 exit 0이면 통과
 wait_until() {
