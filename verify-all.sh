@@ -29,19 +29,20 @@ list_labs() {
 }
 
 if [ "${1:-}" = "--list" ]; then banner "랩 목록"; list_labs; exit 0; fi
-TO="$(resolve_lab "${1:-14}")" || die "알 수 없는 랩: ${1:-}"
+TO="$(resolve_lab "${1:-14}")"  || die "알 수 없는 랩: ${1:-}"
+FROM="$(resolve_lab "${2:-1}")" || die "알 수 없는 랩: ${2:-}"
 
-banner "전체 진단  (접두사 $PREFIX / 계정 $ACCOUNT_ID / 리전 $REGION)"
+banner "진단: Lab $FROM ~ $TO  (접두사 $PREFIX / 계정 $ACCOUNT_ID / 리전 $REGION)"
 TOTAL_FAIL=0; SUMMARY=""
-for i in $(seq 1 "$TO"); do
+for i in $(seq "$FROM" "$TO"); do
   d="${LABS[$i]}"
   out="$(bash "$ROOT_DIR/$d/verify.sh" 2>&1)" && rc=0 || rc=1
   printf '%s\n' "$out"
   line="$(printf '%s' "$out" | grep -o '결과: [0-9]*/[0-9]*' | tail -1)"
   if [ "$rc" -eq 0 ]; then
-    SUMMARY="${SUMMARY}\n  Lab $(printf '%2d' $i)  ${C_G}통과${C_0}   ${line}"
+    SUMMARY="${SUMMARY}\n  $(printf '%2d' $i) $(printf '%-22s' "$d")  ${C_G}통과${C_0}   ${line}"
   else
-    SUMMARY="${SUMMARY}\n  Lab $(printf '%2d' $i)  ${C_R}미충족${C_0} ${line}"
+    SUMMARY="${SUMMARY}\n  $(printf '%2d' $i) $(printf '%-22s' "$d")  ${C_R}미충족${C_0} ${line}"
     TOTAL_FAIL=$((TOTAL_FAIL+1))
   fi
 done

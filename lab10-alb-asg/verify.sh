@@ -23,8 +23,20 @@ check_eq "상태 검사 경로 /health" "/health" bash -c \
 check_eq "healthy 대상 2개 이상" "true" bash -c \
   "n=\$(aws elbv2 describe-target-health --target-group-arn $TG --query \"length(TargetHealthDescriptions[?TargetHealth.State=='healthy'])\" --output text)
    [ \"\${n:-0}\" -ge 2 ] && echo true || echo false"
-check_eq "대상이 2개 AZ에 분산" "2" bash -c \
-  "aws elbv2 describe-target-health --target-group-arn $TG --query \"TargetHealthDescriptions[?TargetHealth.State=='healthy'].Target.AvailabilityZone\" --output text | tr '\t' '\n' | grep -v '^None\$' | sort -u | grep -c ."
+# 대상 유형이 instance 면 Target.AvailabilityZone 이 비어 있다(IP 대상일 때만 채워짐).
+# 등록된 인스턴스 ID 로 실제 AZ 를 조회한다.
+tg_az_count() {
+  local ids
+  ids="$(aws elbv2 describe-target-health --target-group-arn "$TG" \
+        --query "TargetHealthDescriptions[?TargetHealth.State=='healthy'].Target.Id" \
+        --output text 2>/dev/null | tr '\t' ' ')"
+  [ -n "${ids// /}" ] || { echo 0; return 0; }
+  # shellcheck disable=SC2086
+  aws ec2 describe-instances --instance-ids $ids \
+    --query 'Reservations[].Instances[].Placement.AvailabilityZone' --output text 2>/dev/null \
+  | tr '\t' '\n' | grep -v '^None$' | sort -u | grep -c .
+}
+check_eq "healthy 대상이 2개 AZ에 분산" "2" tg_az_count
 
 # ---------- ASG ----------
 check_eq "ASG desired=2" "2" bash -c \

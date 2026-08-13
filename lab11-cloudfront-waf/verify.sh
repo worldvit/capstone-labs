@@ -11,8 +11,13 @@ check_eq "배포 Enabled" "True" bash -c \
   "aws cloudfront get-distribution --id $DIST --query 'Distribution.DistributionConfig.Enabled' --output text"
 check_eq "배포 상태 Deployed" "Deployed" bash -c \
   "aws cloudfront get-distribution --id $DIST --query 'Distribution.Status' --output text"
-check_eq "오리진 2개(ALB + S3)" "2" bash -c \
-  "aws cloudfront get-distribution --id $DIST --query 'Distribution.DistributionConfig.Origins.Quantity' --output text"
+# Lab 12 가 /api/* 용 오리진을 추가하므로 개수가 늘 수 있다. 필수 오리진의 존재로 판정한다.
+check_eq "ALB 오리진 존재" "true" bash -c \
+  "aws cloudfront get-distribution --id $DIST --output json \
+   | jq -e '[.Distribution.DistributionConfig.Origins.Items[] | select(.Id==\"alb-origin\")] | length > 0'"
+check_eq "S3 오리진 존재" "true" bash -c \
+  "aws cloudfront get-distribution --id $DIST --output json \
+   | jq -e '[.Distribution.DistributionConfig.Origins.Items[] | select(.Id==\"s3-origin\")] | length > 0'"
 check_eq "/static/* 캐시 동작 존재" "/static/*" bash -c \
   "aws cloudfront get-distribution --id $DIST --query 'Distribution.DistributionConfig.CacheBehaviors.Items[0].PathPattern' --output text"
 check_eq "S3 오리진에 OAC 연결" "${OAC_ID:-none}" bash -c \
