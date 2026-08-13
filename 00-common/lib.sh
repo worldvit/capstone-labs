@@ -193,8 +193,20 @@ check_summary() {
 confirm_destroy() {
   [ "${FORCE:-0}" = "1" ] && return 0
   printf '%s[!]%s %s\n' "$C_Y" "$C_0" "$1"
-  read -r -p "    삭제하려면 정확히 'delete' 입력: " a
-  [ "$a" = "delete" ] || die "취소했습니다."
+  # 비대화형(파이프·리다이렉션)에서는 확인을 받을 수 없다. FORCE=1을 안내하고 중단한다.
+  if [ ! -t 0 ]; then
+    err "확인 입력을 받을 수 없습니다(비대화형). FORCE=1 을 붙여 실행하십시오."
+    return 1
+  fi
+  local a
+  read -r -p "    삭제하려면 delete 입력 (취소: Enter): " a
+  # 브라우저 터미널이 캐리지 리턴이나 공백을 덧붙이는 경우가 있어 정규화한다.
+  a="$(printf '%s' "$a" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr 'A-Z' 'a-z')"
+  if [ "$a" = "delete" ]; then
+    return 0
+  fi
+  err "취소했습니다. (입력값: '${a}')"
+  return 1
 }
 
 # 실패해도 계속 진행 (teardown 전용)

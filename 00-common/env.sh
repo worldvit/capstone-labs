@@ -22,7 +22,7 @@ export AWS_DEFAULT_REGION="$REGION"
 export AWS_PAGER=""                              # 페이저 때문에 스크립트가 멈추는 것 방지
 
 # 이 계정에서만 실행을 허용한다. guard.sh가 대조한다.
-# 여러 계정에서 쓰려면 콤마로 나열: "454015599543,111122223333"
+# 여러 계정에서 쓰려면 콤마로 나열: "676206941602,111122223333"
 export EXPECTED_ACCOUNT_IDS="${EXPECTED_ACCOUNT_IDS:-454015599543}"
 
 # ---------- 명명 접두사 ----------
@@ -115,6 +115,12 @@ export N_WAF="${PREFIX}-waf"
 export N_BACKUP_VAULT="${PREFIX}-vault"
 export N_BACKUP_PLAN="${PREFIX}-plan"
 export N_ROLE_BACKUP="${PREFIX}-backup-role"
+
+# ---------- NAT 방식 ----------
+# regional : Regional NAT Gateway (2025-11 출시). VPC당 1개가 모든 AZ로 자동 확장.
+#            퍼블릭 서브넷 불필요, EIP는 AWS가 관리. VPC 2개 → NAT 2개.
+# zonal    : 기존 방식. AZ마다 퍼블릭 서브넷에 NAT 1개 + EIP 직접 할당. VPC 2개 → NAT 4개.
+export NAT_MODE="${NAT_MODE:-regional}"
 
 # ---------- EC2 ----------
 export INSTANCE_TYPE="${INSTANCE_TYPE:-t3.micro}"
