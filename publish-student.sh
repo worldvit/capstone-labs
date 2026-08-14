@@ -1,3 +1,144 @@
+#!/usr/bin/env bash
+# ============================================================
+# publish-student.sh — 강사 저장소에서 학생 배포본을 생성한다.
+#
+#   bash publish-student.sh ../capstone-labs
+#
+# 강사 저장소가 원본(single source of truth)이다.
+# 학생 저장소는 여기서 생성되는 파생물이며 직접 편집하지 않는다.
+#
+# 학생에게 나가는 것 : 00-common, preflight.sh, verify.sh, teardown.sh,
+#                      setup-*.sh(플레이스홀더 상태), 문서
+# 학생에게 안 나가는 것: build.sh, repair.sh, build-all.sh, mock-aws, test-common.sh
+#
+# setup-*.sh 를 내보내는 이유:
+#   따라하기형 실습 문서가 이 스크립트를 sed 로 치환해 쓰도록 설계되어 있다.
+#   JSP·nginx.conf·CloudWatch Agent JSON 은 따옴표와 중괄호가 많아
+#   문서에 전문을 싣고 학생이 복사하면 반드시 어긋난다.
+#   대신 값이 박히지 않았는지(플레이스홀더 유지) 5단계에서 검사한다.
+# ============================================================
+set -euo pipefail
+
+DEST="${1:-}"
+[ -n "$DEST" ] || { echo "사용법: bash publish-student.sh <학생저장소경로>"; exit 1; }
+SRC="$(cd "$(dirname "$0")" && pwd)"
+
+C_G=$'\033[32m'; C_Y=$'\033[33m'; C_R=$'\033[31m'; C_0=$'\033[0m'
+ok(){ printf '%s[✔]%s %s\n' "$C_G" "$C_0" "$*"; }
+warn(){ printf '%s[!]%s %s\n' "$C_Y" "$C_0" "$*"; }
+die(){ printf '%s[✘]%s %s\n' "$C_R" "$C_0" "$*" >&2; exit 1; }
+
+[ -d "$DEST/.git" ] || die "$DEST 는 git 저장소가 아닙니다. 먼저 clone 하십시오."
+[ -d "$SRC/00-common" ] || die "$SRC 가 강사 저장소가 아닌 것 같습니다."
+
+printf '\n원본: %s\n대상: %s\n\n' "$SRC" "$DEST"
+
+# ---------- 1. 기존 배포본 비우기 (.git 은 보존) ----------
+find "$DEST" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+ok "대상 저장소 초기화 (.git 보존)"
+
+# ---------- 2. 공통 계층 — 전량 복사 ----------
+mkdir -p "$DEST/00-common"
+cp "$SRC/00-common/"*.sh "$DEST/00-common/"
+ok "00-common 5개 파일 복사"
+
+# ---------- 3. 학생이 실행할 스크립트만 ----------
+for f in preflight.sh verify-all.sh; do
+  [ -f "$SRC/$f" ] && cp "$SRC/$f" "$DEST/"
+done
+ok "preflight.sh, verify-all.sh 복사"
+
+# ---------- 4. 랩별 — verify / teardown 만 ----------
+n=0
+for d in "$SRC"/lab*/; do
+  [ -d "$d" ] || continue
+  lab="$(basename "$d")"
+  mkdir -p "$DEST/$lab"
+  # verify.sh  : 자기 채점
+  # teardown.sh : 정리(비용 관리)
+  # analyze.sh  : 로그 분석 — 읽기 전용이라 학생에게 주어도 안전하다
+  for f in verify.sh teardown.sh analyze.sh loadtest.sh; do
+    [ -f "$d/$f" ] && cp "$d/$f" "$DEST/$lab/"
+  done
+  # setup-*.sh : 따라하기형 문서가 sed 로 치환해 쓰는 구성 스크립트
+  #              플레이스홀더 상태 그대로 내보낸다(값은 학생이 채운다)
+  for f in "$d"setup-*.sh; do
+    [ -f "$f" ] && cp "$f" "$DEST/$lab/"
+  done
+  n=$((n+1))
+done
+ok "랩 ${n}개의 verify / teardown / analyze / loadtest / setup 복사"
+
+# ---------- 5. 유출 검사 ----------
+leak=0
+while IFS= read -r f; do
+  warn "유출 의심 파일: ${f#$DEST/}"; leak=$((leak+1))
+done < <(find "$DEST" \( -name 'build*.sh' -o -name 'repair.sh' -o -name 'mock-aws' \
+           -o -name 'test-common.sh' -o -name 'publish-student.sh' \
+           -o -name 'gen-diagram.py' -o -path '*/tools/*' \) 2>/dev/null)
+[ "$leak" -eq 0 ] && ok "유출 검사 통과 — build/repair 계열 없음" \
+                  || die "유출 파일 ${leak}건 — 스크립트를 점검하십시오"
+
+# ---------- 5-2. setup-*.sh 값 박힘 검사 ----------
+# setup 스크립트는 내보내되, 실제 계정번호·엔드포인트·시크릿이
+# 치환된 채로 나가면 안 된다. 플레이스홀더가 살아 있는지 확인한다.
+baked=0
+while IFS= read -r f; do
+  rel="${f#$DEST/}"
+  # 플레이스홀더가 하나도 없으면 이미 치환된 파일이다
+  if ! grep -qE '__[A-Z_]+__' "$f"; then
+    warn "플레이스홀더 없음(치환된 파일 의심): $rel"; baked=$((baked+1))
+  fi
+  # 실제 값이 박혀 있으면 즉시 중단
+  if grep -qE '[0-9]{12}|\.rds\.amazonaws\.com|fs-[0-9a-f]{8,}|vpce-[0-9a-f]{8,}' "$f"; then
+    warn "실제 값 박힘: $rel"; baked=$((baked+1))
+  fi
+done < <(find "$DEST" -name 'setup-*.sh' 2>/dev/null)
+[ "$baked" -eq 0 ] && ok "setup 스크립트 검사 통과 — 플레이스홀더 유지" \
+                   || die "setup 스크립트 ${baked}건 이상 — 값이 박힌 채 나갑니다"
+
+# ---------- 6. 학생용 부속 파일 ----------
+cat > "$DEST/.gitattributes" << 'EOF'
+* text=auto eol=lf
+*.sh text eol=lf
+EOF
+
+cat > "$DEST/.gitignore" << 'EOF'
+# 실행 중 생성되는 것 — 커밋하지 않는다
+state/
+*.bak
+student.env
+EOF
+
+cat > "$DEST/student.env.example" << 'EOF'
+# ============================================================
+# 개인 계정으로 실습한다면 이 파일은 필요 없습니다.
+# 아무것도 하지 않아도 아래 기본값이 그대로 적용됩니다.
+#
+#   PREFIX=cap          리소스 이름 접두사  (cap-vpc-svc, cap-rds ...)
+#   STUDENT_BASE=1      VPC 대역           (svc 10.1.0.0/16, mgmt 10.2.0.0/16)
+#   REGION=ap-northeast-2
+#
+# 값을 바꾸면 실습 문서에 적힌 이름·대역과 달라져
+# 문서를 그대로 따라갈 수 없게 됩니다. 권장하지 않습니다.
+# ============================================================
+#
+# 그래도 바꿔야 한다면(예: 한 계정에 두 벌을 만들어 비교):
+#   cp student.env.example student.env
+#   vi student.env                # 주석을 풀고 값 수정
+#   source student.env
+#
+# export PREFIX=cap2
+# export STUDENT_BASE=21          # svc 10.21, mgmt 10.22
+# export REGION=ap-northeast-2
+
+# 상태 파일 S3 백업을 끄려면 0 으로 바꾸십시오.
+# 버킷 이름은 지정하지 않으면 cap-state-<계정번호> 로 자동 생성됩니다.
+# export STATE_SYNC=1
+# export STATE_BUCKET=
+EOF
+
+cat > "$DEST/README.md" << 'READMEEOF'
 # 캡스톤 실습 — 학생용
 
 AWS 콘솔과 CLI로 3계층 아키텍처를 **14개 랩에 걸쳐 누적 구축**합니다.
@@ -513,3 +654,17 @@ Session Manager의 요점입니다.
 3. bash verify-all.sh 결과
 4. 실습 문서의 "문제 해결" 표를 확인했는가
 ```
+READMEEOF
+ok "README.md, .gitignore, .gitattributes, student.env.example 생성"
+
+# ---------- 7. 결과 ----------
+printf '\n%s생성된 파일%s\n' "$C_Y" "$C_0"
+(cd "$DEST" && find . -path ./.git -prune -o -type f -print | sort | sed 's|^\./|  |')
+
+printf '\n%s다음 단계%s\n' "$C_Y" "$C_0"
+cat << NEXT
+  cd $DEST
+  git add -A
+  git commit -m "Publish student distribution"
+  git push
+NEXT
