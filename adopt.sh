@@ -19,6 +19,9 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 source 00-common/bootstrap.sh
+# bootstrap 이 set -euo pipefail 을 건다. 이 스크립트는 "못 찾음"이 정상
+# 흐름이므로 errexit 를 끈다. 켜두면 첫 번째 없음에서 종료된다.
+set +e
 
 WRITE=0
 UPTO=13
@@ -40,11 +43,11 @@ put() {  # put <키> <값> [부가설명]
   if [ -z "$val" ] || [ "$val" = "None" ] || [ "$val" = "null" ]; then
     printf '  \033[31m없음\033[0m  %-18s %s\n' "$key" "$note"
     MISSING=$((MISSING+1)); MISSED_NAMES="$MISSED_NAMES $note"
-    return 1
+    return 0
   fi
   printf '  \033[32m찾음\033[0m  %-18s %s\n' "$key" "$val"
   FOUND=$((FOUND+1))
-  [ "$WRITE" = "1" ] && save_state "$key" "$val"
+  [ "$WRITE" = "1" ] && save_state "$key" "$val" || true
   return 0
 }
 q() { aws --region "$REGION" "$@" 2>/dev/null | tr -d '\r'; }
@@ -120,7 +123,6 @@ fi
 # ============================================================
 if [ "$UPTO" -ge 5 ]; then
   log "Lab 5  엔드포인트 · TGW"
-  put SG_VPCE "$(sg_id "$N_SG_VPCE")" "$N_SG_VPCE"
   put VPCE_S3      "$(vpce_id "${PREFIX}-vpce-s3")"      "${PREFIX}-vpce-s3"
   put VPCE_SSM     "$(vpce_id "${PREFIX}-vpce-ssm")"     "${PREFIX}-vpce-ssm"
   put VPCE_SSMMSG  "$(vpce_id "${PREFIX}-vpce-ssmmessages")" "${PREFIX}-vpce-ssmmessages"
