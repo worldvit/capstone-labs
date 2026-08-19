@@ -42,22 +42,44 @@ if [ -n "${EFS_MOUNT_CMD:-}" ]; then
 fi
 # 이 랩의 핵심 주장: 한 AZ에서 쓴 파일이 다른 AZ에서 읽힌다.
 # 마운트 존재만으로는 증명되지 않으므로 실제로 쓰고 읽는다.
+# 중첩 따옴표로 인한 확장 오류를 피하려고 함수로 분리한다.
+ssm_run() { # ssm_run <instance-id> <shell command>  → 표준 출력 반환(실패 시 빈 문자열)
+  local iid="$1" cmd="$2" cid st i
+  cid="$(aws ssm send-command --instance-ids "$iid" \
+        --document-name AWS-RunShellScript \
+        --parameters "$(jq -nc --arg c "$cmd" '{commands:[$c]}')" \
+        --query 'Command.CommandId' --output text 2>/dev/null)" || return 1
+  sleep 3   # send-command 직후에는 호출 기록이 아직 없다
+  for i in $(seq 1 20); do
+    # 조회 실패(InvocationDoesNotExist)는 정상 흐름이므로 종료 코드를 삼킨다.
+    # || true 가 없으면 set -e 가 함수를 죽여 검사 결과가 빈 값이 된다.
+    st="$(aws ssm list-command-invocations --command-id "$cid" --instance-id "$iid" \
+          --query 'CommandInvocations[0].Status' --output text 2>/dev/null || true)"
+    case "$st" in
+      Success) aws ssm list-command-invocations --command-id "$cid" --instance-id "$iid" --details \
+                 --query 'CommandInvocations[0].CommandPlugins[0].Output' --output text 2>/dev/null || true
+               return 0 ;;
+      Failed|TimedOut|Cancelled) return 1 ;;
+    esac
+    sleep 3
+  done
+  return 1
+}
+
+efs_share_test() {
+  local tag out
+  tag="cap-$(date +%s)-$$"
+  ssm_run "${APP_A_ID}" "echo $tag > /mnt/efs/share-test.txt" >/dev/null || { echo "WRITE_FAIL"; return 0; }
+  out="$(ssm_run "${APP_C_ID}" "cat /mnt/efs/share-test.txt" || true)"
+  case "$out" in
+    *"$tag"*) echo OK ;;
+    "")       echo READ_FAIL ;;
+    *)        echo MISMATCH ;;
+  esac
+}
+
 if [ "${EFS_SHARE_CHECK:-1}" = "1" ] && [ -n "${APP_A_ID:-}" ] && [ -n "${APP_C_ID:-}" ]; then
-  check_eq "AZ 간 파일 공유 동작" "OK" bash -c '
-    TAG="capstone-$(date +%s)"
-    w=$(aws ssm send-command --instance-ids '"${APP_A_ID}"' --document-name AWS-RunShellScript         --parameters "commands=["echo $TAG > /mnt/efs/share-test.txt"]"         --query Command.CommandId --output text 2>/dev/null) || exit 1
-    for i in $(seq 1 20); do
-      s=$(aws ssm list-command-invocations --command-id $w --query "CommandInvocations[0].Status" --output text 2>/dev/null)
-      case "$s" in Success) break ;; Failed|TimedOut|Cancelled) echo "WRITE_$s"; exit 0 ;; esac
-      sleep 3
-    done
-    r=$(aws ssm send-command --instance-ids '"${APP_C_ID}"' --document-name AWS-RunShellScript         --parameters "commands=["grep -q $TAG /mnt/efs/share-test.txt && echo MATCH"]"         --query Command.CommandId --output text 2>/dev/null) || exit 1
-    for i in $(seq 1 20); do
-      s=$(aws ssm list-command-invocations --command-id $r --query "CommandInvocations[0].Status" --output text 2>/dev/null)
-      case "$s" in Success) echo OK; exit 0 ;; Failed|TimedOut|Cancelled) echo "READ_$s"; exit 0 ;; esac
-      sleep 3
-    done
-    echo TIMEOUT'
+  check_eq "AZ 간 파일 공유 동작" "OK" efs_share_test
 else
   log "  (EFS_SHARE_CHECK=0 이거나 App 서버가 없어 AZ 간 공유 검사를 건너뜁니다)"
 fi
