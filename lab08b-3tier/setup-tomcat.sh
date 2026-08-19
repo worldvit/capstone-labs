@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # App 계층 구성 — Tomcat + PostgreSQL JDBC + 진단 JSP
 # 이 스크립트는 build.sh가 base64로 인코딩해 SSM으로 전달한다.
 set -uo pipefail

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Web 계층 구성 — nginx 리버스 프록시
 # build.sh가 base64로 인코딩해 SSM으로 전달한다.
 set -uo pipefail
