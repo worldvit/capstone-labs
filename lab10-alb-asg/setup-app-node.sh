@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # ASG 노드 부팅 구성 — EFS 마운트 + Tomcat + JDBC + 진단 JSP
 # build.sh가 base64로 인코딩해 시작 템플릿의 사용자 데이터에 넣는다.
 set -uo pipefail
