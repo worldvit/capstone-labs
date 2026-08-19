@@ -4,15 +4,15 @@
 #
 # 사용법:
 #   cd ~/capstone-labs
-#   bash adopt-lab03.sh          # 확인만
-#   bash adopt-lab03.sh --write  # state 파일에 기록
+#   bash lab03-network/adopt-lab03.sh          # 확인만
+#   bash lab03-network/adopt-lab03.sh --write  # state 파일에 기록
 #
 # verify.sh 는 리소스 ID를 state 파일에서 읽는다. build.sh 로 만들면
 # 자동으로 채워지지만, 콘솔로 만들면 비어 있어 검사가 모두 실패한다.
 # 이 스크립트는 Name 태그로 리소스를 찾아 그 빈칸을 채운다.
 # ============================================================
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 source 00-common/bootstrap.sh
 
 WRITE=0
@@ -91,5 +91,5 @@ if [ "$WRITE" = "1" ]; then
 else
   echo
   log "확인만 했습니다. 기록하려면:"
-  log "  bash adopt-lab03.sh --write"
+  log "  bash lab03-network/adopt-lab03.sh --write"
 fi
