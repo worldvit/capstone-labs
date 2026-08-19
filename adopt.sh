@@ -179,6 +179,9 @@ if [ "$UPTO" -ge 8 ]; then
       put DB_MULTIAZ_USED "$(q rds describe-db-instances --db-instance-identifier "$ID" --query 'DBInstances[0].MultiAZ' --output text)" "다중 AZ"
       put DB_RETAIN_USED "$(q rds describe-db-instances --db-instance-identifier "$ID" --query 'DBInstances[0].BackupRetentionPeriod' --output text)" "백업 보존"
       put DB_SECRET_ARN  "$(q rds describe-db-instances --db-instance-identifier "$ID" --query 'DBInstances[0].MasterUserSecret.SecretArn' --output text)" "시크릿"
+      # verify.sh 는 RDS 모드에서도 엔드포인트를 AURORA_WRITER_EP 로 읽는다.
+      # 이름은 Aurora 지만 "접속 대상 주소"를 담는 공용 변수다.
+      put AURORA_WRITER_EP "$(q rds describe-db-instances --db-instance-identifier "$ID" --query 'DBInstances[0].Endpoint.Address' --output text)" "엔드포인트"
     fi
   fi
 fi
