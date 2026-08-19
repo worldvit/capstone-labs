@@ -19,12 +19,15 @@ ssm_run() { # <instance-id> <shell command> → 표준 출력
   cid="$(aws ssm send-command --instance-ids "$iid" --document-name AWS-RunShellScript \
         --parameters "$(jq -nc --arg c "$cmd" '{commands:[$c]}')" \
         --query 'Command.CommandId' --output text 2>/dev/null)" || return 1
+  sleep 3   # send-command 직후에는 호출 기록이 아직 없다
   for _ in $(seq 1 20); do
+    # 조회 실패(InvocationDoesNotExist)는 정상 흐름이므로 종료 코드를 삼킨다.
+    # || true 가 없으면 set -e 가 함수를 죽여 검사 결과가 빈 값이 된다.
     st="$(aws ssm list-command-invocations --command-id "$cid" --instance-id "$iid" \
-          --query 'CommandInvocations[0].Status' --output text 2>/dev/null)"
+          --query 'CommandInvocations[0].Status' --output text 2>/dev/null || true)"
     case "$st" in
       Success) aws ssm list-command-invocations --command-id "$cid" --instance-id "$iid" --details \
-                 --query 'CommandInvocations[0].CommandPlugins[0].Output' --output text 2>/dev/null
+                 --query 'CommandInvocations[0].CommandPlugins[0].Output' --output text 2>/dev/null || true
                return 0 ;;
       Failed|TimedOut|Cancelled) return 1 ;;
     esac
