@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # CloudWatch Agent 구성 — 지표(메모리·디스크)와 로그를 수집한다.
 # build.sh가 base64로 인코딩해 SSM으로 전달한다.
 set -uo pipefail
