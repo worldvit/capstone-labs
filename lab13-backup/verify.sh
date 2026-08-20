@@ -25,7 +25,7 @@ fi
 check_eq "캡스톤 리소스에 Project 태그" "true" bash -c \
   "n=\$(aws resourcegroupstaggingapi get-resources --tag-filters Key=Project,Values=capstone \
         --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)
-   n=\$(echo \"\$n\" | paste -sd+ - | bc 2>/dev/null || echo 0)
+   n=\$(echo \"\$n\" | awk '{s+=\$1} END{print s+0}')
    [ \"\${n:-0}\" -ge 5 ] && echo true || echo false"
 check_eq "웹 버킷 버전 관리 활성" "Enabled" bash -c \
   "aws s3api get-bucket-versioning --bucket ${BUCKET_WEB:-none} --query Status --output text"
