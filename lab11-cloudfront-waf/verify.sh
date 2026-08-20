@@ -30,8 +30,11 @@ check_eq "WAF가 us-east-1 CLOUDFRONT 범위에 존재" "1" bash -c \
   "aws wafv2 list-web-acls --scope CLOUDFRONT --region us-east-1 --query \"length(WebACLs[?Name=='$N_WAF'])\" --output text"
 check_eq "배포에 WAF 연결" "${WAF_ARN:-none}" bash -c \
   "aws cloudfront get-distribution --id $DIST --query 'Distribution.DistributionConfig.WebACLId' --output text"
-check_eq "WAF 규칙 3개" "3" bash -c \
-  "aws wafv2 get-web-acl --scope CLOUDFRONT --region us-east-1 --name $N_WAF --id ${WAF_ID:-none} --query 'length(WebACL.Rules)' --output text"
+# 새 콘솔의 "보호 팩" 흐름은 앱 카테고리에 맞춰 규칙을 자동으로 채운다(19개 이상).
+# 그래서 개수를 못 박지 않고 "필수 세 종류가 들어 있는가"를 본다.
+check_eq "WAF 필수 규칙 3종 포함" "3" bash -c \
+  "aws wafv2 get-web-acl --scope CLOUDFRONT --region us-east-1 --name $N_WAF --id ${WAF_ID:-none} --output json \
+   | python3 -c \"import sys,json; r=json.load(sys.stdin)['WebACL']['Rules']; d=json.dumps(r); print(sum([('CommonRuleSet' in d),('KnownBadInputs' in d),('RateBasedStatement' in d)]))\""
 
 # ---------- S3 버킷 정책 ----------
 check "버킷 정책에 OAC 조건 존재" bash -c \
